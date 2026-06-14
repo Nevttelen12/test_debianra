@@ -1,0 +1,108 @@
+---
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  Role 02: Shell — Zsh, Zinit, Starship, Modern CLI              ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
+# ─────────────────────────────────────────────────
+# Csomagok
+# ─────────────────────────────────────────────────
+- name: Zsh és modern CLI eszközök telepítése
+  ansible.builtin.apt:
+    name:
+      - zsh
+      - fzf
+      - ripgrep
+      - bat
+      - fd-find
+    state: present
+  tags: [shell, packages]
+
+# eza külön repóból (Debian Bookworm-ban nincs alapból)
+- name: eza (modern ls) — GPG kulcs
+  ansible.builtin.shell: |
+    mkdir -p /etc/apt/keyrings
+    wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | gpg --dearmor -o /etc/apt/keyrings/gierens.gpg
+    chmod 644 /etc/apt/keyrings/gierens.gpg
+  args:
+    creates: /etc/apt/keyrings/gierens.gpg
+  tags: [shell, eza]
+
+- name: eza — APT repó hozzáadása
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/etc/apt/keyrings/gierens.gpg]
+      http://deb.gierens.de stable main
+    filename: gierens
+    state: present
+  tags: [shell, eza]
+
+- name: eza — telepítés
+  ansible.builtin.apt:
+    name: eza
+    state: present
+    update_cache: true
+  tags: [shell, eza]
+
+# zoxide (okos cd) — bináris telepítés
+- name: zoxide telepítése
+  ansible.builtin.shell: curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh
+  args:
+    creates: /usr/local/bin/zoxide
+  tags: [shell, zoxide]
+
+# ─────────────────────────────────────────────────
+# Zsh beállítás
+# ─────────────────────────────────────────────────
+- name: Felhasználó alapértelmezett shell → Zsh
+  ansible.builtin.user:
+    name: "{{ dev_user }}"
+    shell: /bin/zsh
+  tags: [shell, zsh]
+
+# ─────────────────────────────────────────────────
+# Zinit plugin manager
+# ─────────────────────────────────────────────────
+- name: Zinit (Zsh plugin manager) telepítése
+  become: false
+  ansible.builtin.git:
+    repo: https://github.com/zdharma-continuum/zinit.git
+    dest: "/home/{{ dev_user }}/.local/share/zinit/zinit.git"
+    depth: 1
+  tags: [shell, zinit]
+
+# ─────────────────────────────────────────────────
+# Starship prompt
+# ─────────────────────────────────────────────────
+- name: Starship prompt telepítése
+  ansible.builtin.shell: curl -sS https://starship.rs/install.sh | sh -s -- -y
+  args:
+    creates: /usr/local/bin/starship
+  tags: [shell, starship]
+
+- name: Starship konfiguráció könyvtár létrehozása
+  become: false
+  ansible.builtin.file:
+    path: "/home/{{ dev_user }}/.config"
+    state: directory
+    mode: "0755"
+  tags: [shell, starship]
+
+- name: Starship konfiguráció másolása
+  become: false
+  ansible.builtin.copy:
+    src: starship.toml
+    dest: "/home/{{ dev_user }}/.config/starship.toml"
+    mode: "0644"
+  tags: [shell, starship]
+
+# ─────────────────────────────────────────────────
+# .zshrc template
+# ─────────────────────────────────────────────────
+- name: .zshrc beállítása (Jinja2 template)
+  become: false
+  ansible.builtin.template:
+    src: zshrc.j2
+    dest: "/home/{{ dev_user }}/.zshrc"
+    mode: "0644"
+    backup: true
+  tags: [shell, zshrc]

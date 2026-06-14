@@ -1,0 +1,78 @@
+---
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  Role 06: Flutter — Dart SDK + FVM                              ║
+# ║  (Csak akkor fut, ha install_flutter: true a változókban)       ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
+# ─────────────────────────────────────────────────
+# Flutter build függőségek
+# ─────────────────────────────────────────────────
+- name: Flutter / Android build függőségek telepítése
+  ansible.builtin.apt:
+    name:
+      - openjdk-17-jdk
+      - clang
+      - cmake
+      - ninja-build
+      - pkg-config
+      - libgtk-3-dev
+      - liblzma-dev
+    state: present
+  tags: [flutter, deps]
+
+# ─────────────────────────────────────────────────
+# Dart SDK (a FVM-hez kell)
+# ─────────────────────────────────────────────────
+- name: Dart SDK GPG kulcs
+  ansible.builtin.shell: |
+    curl -fsSL https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/keyrings/dart.gpg
+    chmod a+r /etc/apt/keyrings/dart.gpg
+  args:
+    creates: /etc/apt/keyrings/dart.gpg
+  tags: [flutter, dart]
+
+- name: Dart SDK APT repó
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/etc/apt/keyrings/dart.gpg arch=amd64]
+      https://storage.googleapis.com/dart-archive/channels/stable/release/latest/linux_packages/debian
+      stable main
+    filename: dart
+    state: present
+  tags: [flutter, dart]
+
+- name: Dart SDK telepítése
+  ansible.builtin.apt:
+    name: dart
+    state: present
+    update_cache: true
+  tags: [flutter, dart]
+
+# ─────────────────────────────────────────────────
+# FVM (Flutter Version Manager) — a HELYES módszer
+# ─────────────────────────────────────────────────
+- name: "FVM telepítése (dart pub global activate)"
+  become: false
+  ansible.builtin.shell: dart pub global activate fvm
+  args:
+    executable: /bin/bash
+  environment:
+    PATH: "/usr/lib/dart/bin:{{ ansible_env.PATH }}"
+  register: fvm_install
+  changed_when: "'Activated fvm' in fvm_install.stdout"
+  tags: [flutter, fvm]
+
+# ─────────────────────────────────────────────────
+# Alapértelmezett Flutter SDK letöltése
+# ─────────────────────────────────────────────────
+- name: "Flutter {{ flutter_default_channel }} SDK letöltése FVM-mel"
+  become: false
+  ansible.builtin.shell: |
+    export PATH="$HOME/.pub-cache/bin:/usr/lib/dart/bin:$PATH"
+    fvm install {{ flutter_default_channel }}
+    fvm global {{ flutter_default_channel }}
+  args:
+    executable: /bin/bash
+  register: fvm_flutter
+  changed_when: "'already installed' not in fvm_flutter.stdout"
+  tags: [flutter, fvm]

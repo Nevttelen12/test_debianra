@@ -1,0 +1,123 @@
+---
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  Role 01: Rendszer alapozás — APT, Git, SSH, GitLab CLI         ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
+# ─────────────────────────────────────────────────
+# Alapcsomagok
+# ─────────────────────────────────────────────────
+- name: APT cache frissítése és alapcsomagok telepítése
+  ansible.builtin.apt:
+    name:
+      - curl
+      - wget
+      - git
+      - build-essential
+      - unzip
+      - zip
+      - software-properties-common
+      - apt-transport-https
+      - ca-certificates
+      - gnupg
+      - lsb-release
+      - jq
+      - httpie
+      - tree
+      - tmux
+      - make
+      - direnv
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: [system, packages]
+
+# ─────────────────────────────────────────────────
+# GitLab CLI (glab)
+# ─────────────────────────────────────────────────
+- name: GitLab CLI (glab) — GPG kulcs letöltése
+  ansible.builtin.get_url:
+    url: https://gitlab.com/gitlab-org/cli/-/raw/main/scripts/gpg_key.pub
+    dest: /usr/share/keyrings/gitlab-cli-archive-keyring.gpg.asc
+    mode: "0644"
+  tags: [system, gitlab]
+
+- name: GitLab CLI (glab) — APT repó hozzáadása
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/usr/share/keyrings/gitlab-cli-archive-keyring.gpg.asc]
+      https://gitlab.com/gitlab-org/cli/-/packages/deb
+      stable main
+    filename: gitlab-cli
+    state: present
+  tags: [system, gitlab]
+
+- name: GitLab CLI (glab) — telepítés
+  ansible.builtin.apt:
+    name: glab
+    state: present
+    update_cache: true
+  tags: [system, gitlab]
+
+# ─────────────────────────────────────────────────
+# Git konfiguráció
+# ─────────────────────────────────────────────────
+- name: Globális Git konfiguráció beállítása
+  become: false
+  community.general.git_config:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    scope: global
+  loop:
+    - { name: "user.name",              value: "{{ git_name }}" }
+    - { name: "user.email",             value: "{{ git_email }}" }
+    - { name: "init.defaultBranch",     value: "main" }
+    - { name: "core.autocrlf",          value: "input" }
+    - { name: "pull.rebase",            value: "true" }
+    - { name: "push.autoSetupRemote",   value: "true" }
+    - { name: "rerere.enabled",         value: "true" }
+    - { name: "core.editor",            value: "nano" }
+  tags: [system, git]
+
+# ─────────────────────────────────────────────────
+# SSH kulcs
+# ─────────────────────────────────────────────────
+- name: SSH könyvtár létrehozása
+  become: false
+  ansible.builtin.file:
+    path: "/home/{{ dev_user }}/.ssh"
+    state: directory
+    mode: "0700"
+  tags: [system, ssh]
+
+- name: SSH kulcspár generálása (ha még nem létezik)
+  become: false
+  community.crypto.openssh_keypair:
+    path: "/home/{{ dev_user }}/.ssh/id_ed25519"
+    type: ed25519
+    comment: "{{ git_email }}"
+  tags: [system, ssh]
+
+- name: SSH config beállítása GitLabhoz
+  become: false
+  ansible.builtin.blockinfile:
+    path: "/home/{{ dev_user }}/.ssh/config"
+    create: true
+    mode: "0600"
+    marker: "# {mark} ANSIBLE MANAGED — GitLab"
+    block: |
+      Host gitlab.com
+        PreferredAuthentications publickey
+        IdentityFile ~/.ssh/id_ed25519
+  tags: [system, ssh]
+
+- name: SSH publikus kulcs kiolvasása
+  become: false
+  ansible.builtin.command: cat "/home/{{ dev_user }}/.ssh/id_ed25519.pub"
+  register: ssh_pub_key
+  changed_when: false
+  tags: [system, ssh]
+
+- name: "═══ SSH PUBLIKUS KULCS — Másold be a GitLabba! ═══"
+  ansible.builtin.debug:
+    msg: "{{ ssh_pub_key.stdout }}"
+  tags: [system, ssh]

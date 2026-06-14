@@ -1,0 +1,83 @@
+---
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  Fejlesztői Workstation — Globális Változók                     ║
+# ║  Új fejlesztő: csak ezt a fájlt kell átírni futtatás előtt!     ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
+# ─────────────────────────────────────────────────
+# Fejlesztő személyes adatai
+# ─────────────────────────────────────────────────
+dev_user: "{{ ansible_user_id }}"          # Automatikusan felismeri a bejelentkezett usert
+git_name: "Vezetéknév Keresztnév"          # ← Írd át a saját nevedre!
+git_email: "email@webceg.hu"               # ← Írd át a saját email címedre!
+
+# ─────────────────────────────────────────────────
+# PHP konfiguráció
+# ─────────────────────────────────────────────────
+php_versions:
+  - "7.4"                                   # Legacy projektek
+  - "8.2"                                   # Stabil, támogatott
+  - "8.3"                                   # Alapértelmezett
+  - "8.4"                                   # Legújabb
+
+php_default_version: "8.3"
+
+# Kiterjesztések — minden verzióhoz telepítve lesznek
+php_extensions:
+  - cli
+  - common
+  - mysql
+  - pgsql
+  - sqlite3
+  - xml
+  - mbstring
+  - curl
+  - zip
+  - gd
+  - intl
+  - bcmath
+  - soap
+  - redis
+  - imagick
+
+# ─────────────────────────────────────────────────
+# Node.js konfiguráció
+# ─────────────────────────────────────────────────
+nvm_version: "0.40.3"
+
+node_versions:
+  - "18"                                     # LTS — régebbi projektek
+  - "20"                                     # LTS — stabil
+  - "22"                                     # Current LTS — alapértelmezett
+
+node_default_version: "22"
+
+# ─────────────────────────────────────────────────
+# Flutter / FVM konfiguráció
+# ─────────────────────────────────────────────────
+install_flutter: true                        # false-ra állítva kihagyja
+flutter_default_channel: "stable"
+
+# ─────────────────────────────────────────────────
+# Lokális infrastruktúra
+# ─────────────────────────────────────────────────
+local_domain_tld: "test"                     # *.test domaineket használunk
+
+# Mailpit — email tesztelő
+mailpit_smtp_port: 1025
+mailpit_web_port: 8025
+
+# Traefik — reverse proxy
+traefik_dashboard_port: 8080
+
+# MySQL — globális fejlesztői adatbázis
+mysql_port: 3306
+mysql_root_password: "devroot"               # Csak lokális dev! Soha ne használd prodban!
+
+# Redis — globális cache/queue szerver
+redis_port: 6379
+
+# ─────────────────────────────────────────────────
+# Traefik infra könyvtár
+# ─────────────────────────────────────────────────
+traefik_base_dir: "/home/{{ dev_user }}/.local/share/traefik"

@@ -1,0 +1,70 @@
+---
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  Professzionális Webfejlesztői Környezet Kiépítése              ║
+# ║                                                                  ║
+# ║  Futtatás:                                                       ║
+# ║    ansible-playbook setup.yml --ask-become-pass                  ║
+# ║                                                                  ║
+# ║  Csak egyes részek futtatása:                                    ║
+# ║    ansible-playbook setup.yml --ask-become-pass --tags docker    ║
+# ║    ansible-playbook setup.yml --ask-become-pass --tags php       ║
+# ║    ansible-playbook setup.yml --ask-become-pass --tags shell     ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
+- name: Professzionális Webfejlesztői Környezet Kiépítése
+  hosts: workstation
+  become: true
+
+  vars_files:
+    - group_vars/all.yml
+
+  pre_tasks:
+    - name: Debian Bookworm ellenőrzése
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Debian"
+          - ansible_distribution_major_version == "12"
+        fail_msg: >
+          Ez a playbook Debian 12 (Bookworm) rendszerre készült.
+          Jelenlegi rendszer: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      tags: always
+
+  roles:
+    - role: 01_system
+      tags: [system]
+    - role: 02_shell
+      tags: [shell]
+    - role: 03_docker
+      tags: [docker]
+    - role: 04_php
+      tags: [php]
+    - role: 05_node
+      tags: [node]
+    - role: 06_flutter
+      tags: [flutter]
+      when: install_flutter | bool
+    - role: 07_local_infra
+      tags: [infra]
+    - role: 08_quality_tools
+      tags: [quality]
+
+  post_tasks:
+    - name: "════════════════════════════════════════"
+      ansible.builtin.debug:
+        msg:
+          - "🎉 A fejlesztői környezet sikeresen telepítve!"
+          - ""
+          - "Következő lépések:"
+          - "  1. Jelentkezz ki és vissza (vagy: newgrp docker)"
+          - "  2. Nyiss egy új terminált — a Zsh automatikusan elindul"
+          - "  3. Másold be az SSH kulcsod a GitLabba:"
+          - "     cat ~/.ssh/id_ed25519.pub"
+          - "  4. Ellenőrizd a telepítést:"
+          - "     ansible-playbook verify.yml"
+          - ""
+          - "Hasznos linkek:"
+          - "  Mailpit:   http://localhost:{{ mailpit_web_port }}"
+          - "  Traefik:   http://localhost:{{ traefik_dashboard_port }}"
+          - "  MySQL:     127.0.0.1:{{ mysql_port }}  (root / {{ mysql_root_password }})"
+          - "  Redis:     127.0.0.1:{{ redis_port }}"
+      tags: always

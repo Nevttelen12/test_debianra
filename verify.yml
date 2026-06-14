@@ -1,0 +1,160 @@
+---
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  Post-install Ellenőrzés                                        ║
+# ║                                                                  ║
+# ║  Futtatás:  ansible-playbook verify.yml                          ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
+- name: Fejlesztői Környezet Ellenőrzése
+  hosts: workstation
+  become: false
+  gather_facts: false
+
+  vars_files:
+    - group_vars/all.yml
+
+  tasks:
+    # ─────────────────────────────────────────────
+    # Rendszereszközök
+    # ─────────────────────────────────────────────
+    - name: "🔍 Git verzió"
+      ansible.builtin.command: git --version
+      changed_when: false
+      register: git_ver
+
+    - name: "🔍 Zsh verzió"
+      ansible.builtin.command: zsh --version
+      changed_when: false
+      register: zsh_ver
+
+    - name: "🔍 glab (GitLab CLI) verzió"
+      ansible.builtin.command: glab --version
+      changed_when: false
+      register: glab_ver
+
+    # ─────────────────────────────────────────────
+    # Docker
+    # ─────────────────────────────────────────────
+    - name: "🐳 Docker verzió"
+      ansible.builtin.command: docker --version
+      changed_when: false
+      register: docker_ver
+
+    - name: "🐳 Docker Compose verzió"
+      ansible.builtin.command: docker compose version
+      changed_when: false
+      register: compose_ver
+
+    # ─────────────────────────────────────────────
+    # PHP
+    # ─────────────────────────────────────────────
+    - name: "🐘 PHP verziók ellenőrzése"
+      ansible.builtin.command: "php{{ item }} -v"
+      loop: "{{ php_versions }}"
+      changed_when: false
+      register: php_ver
+
+    - name: "🐘 Composer verzió"
+      ansible.builtin.command: composer --version
+      changed_when: false
+      register: composer_ver
+
+    # ─────────────────────────────────────────────
+    # Node.js
+    # ─────────────────────────────────────────────
+    - name: "📦 Node.js verzió (NVM-en keresztül)"
+      ansible.builtin.shell: |
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        node --version
+      args:
+        executable: /bin/bash
+      changed_when: false
+      register: node_ver
+
+    - name: "📦 NVM elérhető verziók"
+      ansible.builtin.shell: |
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        nvm ls --no-colors
+      args:
+        executable: /bin/bash
+      changed_when: false
+      register: nvm_ls
+
+    # ─────────────────────────────────────────────
+    # Flutter (ha telepítve)
+    # ─────────────────────────────────────────────
+    - name: "🦋 FVM verzió"
+      ansible.builtin.shell: |
+        export PATH="$HOME/.pub-cache/bin:$PATH"
+        fvm --version
+      args:
+        executable: /bin/bash
+      changed_when: false
+      register: fvm_ver
+      ignore_errors: true
+
+    # ─────────────────────────────────────────────
+    # Lokális infrastruktúra
+    # ─────────────────────────────────────────────
+    - name: "🔒 mkcert verzió"
+      ansible.builtin.command: mkcert --version
+      changed_when: false
+      register: mkcert_ver
+
+    - name: "📧 Mailpit konténer állapot"
+      ansible.builtin.command: docker inspect global-mailpit --format "{% raw %}{{.State.Status}}{% endraw %}"
+      changed_when: false
+      register: mailpit_status
+
+    - name: "🗄️ MySQL konténer állapot"
+      ansible.builtin.command: docker inspect global-mysql --format "{% raw %}{{.State.Status}}{% endraw %}"
+      changed_when: false
+      register: mysql_status
+
+    - name: "⚡ Redis konténer állapot"
+      ansible.builtin.command: docker inspect global-redis --format "{% raw %}{{.State.Status}}{% endraw %}"
+      changed_when: false
+      register: redis_status
+
+    - name: "🔀 Traefik konténer állapot"
+      ansible.builtin.command: docker inspect global-traefik --format "{% raw %}{{.State.Status}}{% endraw %}"
+      changed_when: false
+      register: traefik_status
+
+    # ─────────────────────────────────────────────
+    # Összegzés
+    # ─────────────────────────────────────────────
+    - name: "═══════════ EREDMÉNYEK ═══════════"
+      ansible.builtin.debug:
+        msg:
+          - "── Rendszer ──────────────────────────"
+          - "  Git:        {{ git_ver.stdout }}"
+          - "  Zsh:        {{ zsh_ver.stdout }}"
+          - "  GitLab CLI: {{ glab_ver.stdout_lines[0] | default('N/A') }}"
+          - ""
+          - "── Docker ───────────────────────────"
+          - "  Docker:     {{ docker_ver.stdout }}"
+          - "  Compose:    {{ compose_ver.stdout }}"
+          - ""
+          - "── PHP ──────────────────────────────"
+          - "  Composer:   {{ composer_ver.stdout_lines[0] | default('N/A') }}"
+          - "{% for result in php_ver.results %}  PHP {{ result.item }}: ✅ telepítve"
+          - "{% endfor %}"
+          - ""
+          - "── Node.js ─────────────────────────"
+          - "  Node:       {{ node_ver.stdout }}"
+          - ""
+          - "── Flutter ─────────────────────────"
+          - "  FVM:        {{ fvm_ver.stdout | default('Nincs telepítve') }}"
+          - ""
+          - "── Konténerek ──────────────────────"
+          - "  Mailpit:    {{ mailpit_status.stdout }}"
+          - "  MySQL:      {{ mysql_status.stdout }}"
+          - "  Redis:      {{ redis_status.stdout }}"
+          - "  Traefik:    {{ traefik_status.stdout }}"
+          - ""
+          - "── Web felületek ──────────────────"
+          - "  Mailpit:    http://localhost:{{ mailpit_web_port }}"
+          - "  Traefik:    http://localhost:{{ traefik_dashboard_port }}"

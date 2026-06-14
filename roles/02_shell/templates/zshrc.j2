@@ -1,0 +1,156 @@
+# ═══════════════════════════════════════════════════════════════════
+#  .zshrc — Ansible által generálva ({{ ansible_date_time.date | default('') }})
+#  Ne szerkeszd kézzel! Ha módosítani kell, a role-t frissítsd.
+# ═══════════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────
+# Zinit Plugin Manager
+# ─────────────────────────────────────────────────
+ZINIT_HOME="$HOME/.local/share/zinit/zinit.git"
+[ -f "$ZINIT_HOME/zinit.zsh" ] && source "$ZINIT_HOME/zinit.zsh"
+
+# Pluginek
+zinit light zsh-users/zsh-syntax-highlighting
+zinit light zsh-users/zsh-autosuggestions
+zinit light zsh-users/zsh-completions
+
+# Automatikus kiegészítés inicializálás
+autoload -Uz compinit && compinit -C
+
+# ─────────────────────────────────────────────────
+# Történet (History)
+# ─────────────────────────────────────────────────
+HISTFILE="$HOME/.zsh_history"
+HISTSIZE=10000
+SAVEHIST=10000
+setopt HIST_IGNORE_DUPS        # Duplikátumok kihagyása
+setopt HIST_IGNORE_SPACE       # Szóköz-kezdetű parancsok kihagyása
+setopt SHARE_HISTORY           # Megosztott history terminálok között
+setopt APPEND_HISTORY          # Hozzáfűzés, nem felülírás
+
+# ─────────────────────────────────────────────────
+# Modern CLI Aliasok
+# ─────────────────────────────────────────────────
+alias cat="batcat --style=plain --paging=never"
+alias ls="eza --icons --group-directories-first"
+alias ll="eza -la --icons --group-directories-first --git"
+alias lt="eza -la --icons --tree --level=2"
+alias find="fdfind"
+alias lg="lazygit"
+alias ld="lazydocker"
+alias tf="tmux"
+
+# Git gyorsparancsok
+alias gs="git status"
+alias gp="git pull"
+alias gc="git commit"
+alias gd="git diff"
+
+# ─────────────────────────────────────────────────
+# PHP Verzióváltó
+# ─────────────────────────────────────────────────
+switch-php() {
+  if [ -z "$1" ]; then
+    echo "📦 Használat: switch-php <verzió>"
+    echo "   Elérhető verziók: {{ php_versions | join(', ') }}"
+    echo ""
+    echo "   Jelenlegi verzió:"
+    php -v | head -1
+    return 0
+  fi
+
+  if ! command -v php$1 &> /dev/null; then
+    echo "❌ A PHP $1 nincs telepítve!"
+    echo "   Elérhető verziók: {{ php_versions | join(', ') }}"
+    return 1
+  fi
+
+  sudo update-alternatives --set php /usr/bin/php$1 > /dev/null 2>&1
+  sudo update-alternatives --set phar /usr/bin/phar$1 > /dev/null 2>&1
+  sudo update-alternatives --set phar.phar /usr/bin/phar.phar$1 > /dev/null 2>&1
+
+  echo "✅ PHP átállítva → $(php -v | head -1)"
+}
+
+# ─────────────────────────────────────────────────
+# Composer
+# ─────────────────────────────────────────────────
+export PATH="$HOME/.config/composer/vendor/bin:$PATH"
+
+# ─────────────────────────────────────────────────
+# NVM — Lazy Loading (nem lassítja a terminál nyitást!)
+# ─────────────────────────────────────────────────
+export NVM_DIR="$HOME/.nvm"
+
+_nvm_lazy_load() {
+  unset -f nvm node npm npx pnpm yarn corepack 2>/dev/null
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+}
+
+nvm()      { _nvm_lazy_load; nvm "$@"; }
+node()     { _nvm_lazy_load; node "$@"; }
+npm()      { _nvm_lazy_load; npm "$@"; }
+npx()      { _nvm_lazy_load; npx "$@"; }
+pnpm()     { _nvm_lazy_load; pnpm "$@"; }
+yarn()     { _nvm_lazy_load; yarn "$@"; }
+corepack() { _nvm_lazy_load; corepack "$@"; }
+
+# Automatikus .nvmrc betöltés könyvtárváltáskor
+autoload -U add-zsh-hook
+_nvm_auto_use() {
+  if [ -f .nvmrc ]; then
+    _nvm_lazy_load
+    nvm use --silent 2>/dev/null
+  fi
+}
+add-zsh-hook chpwd _nvm_auto_use
+# Futtatás az aktuális könyvtárban is induláskor
+[[ -f .nvmrc ]] && _nvm_auto_use
+
+{% if install_flutter %}
+# ─────────────────────────────────────────────────
+# FVM (Flutter Version Manager)
+# ─────────────────────────────────────────────────
+export PATH="$HOME/.pub-cache/bin:$PATH"
+alias flutter="fvm flutter"
+alias dart="fvm dart"
+{% endif %}
+
+# ─────────────────────────────────────────────────
+# Laravel Artisan gyorsparancsok
+# ─────────────────────────────────────────────────
+alias art="php artisan"
+alias artm="php artisan migrate"
+alias arts="php artisan serve"
+alias artt="php artisan test"
+alias tinker="php artisan tinker"
+
+# Egy parancs → új Laravel projekt Traefikkel
+new-laravel() {
+  if [ -z "$1" ]; then
+    echo "📦 Használat: new-laravel <projektnév>"
+    return 1
+  fi
+  composer create-project laravel/laravel "$1"
+  echo "✅ Laravel projekt létrehozva: $1"
+  echo "   Következő lépések:"
+  echo "   1. cd $1"
+  echo "   2. Másold be a docker-compose.yml sablont"
+  echo "   3. docker compose up -d"
+  echo "   4. Nyisd meg: https://$1.{{ local_domain_tld }}"
+}
+
+# ─────────────────────────────────────────────────
+# Direnv — projekt-szintű ENV változók
+# ─────────────────────────────────────────────────
+eval "$(direnv hook zsh)"
+
+# ─────────────────────────────────────────────────
+# Zoxide — okos cd (z parancs)
+# ─────────────────────────────────────────────────
+eval "$(zoxide init zsh)"
+
+# ─────────────────────────────────────────────────
+# Starship prompt (mindig az utolsó!)
+# ─────────────────────────────────────────────────
+eval "$(starship init zsh)"

@@ -1,0 +1,43 @@
+# ═══════════════════════════════════════════════
+#  Traefik Reverse Proxy — Docker Compose
+#  Ansible managed — ne szerkeszd kézzel!
+# ═══════════════════════════════════════════════
+
+services:
+  traefik:
+    image: traefik:v3.1
+    container_name: global-traefik
+    restart: always
+    command:
+      # API / Dashboard
+      - --api.dashboard=true
+      - --api.insecure=true
+      # Docker provider
+      - --providers.docker=true
+      - --providers.docker.exposedByDefault=false
+      - --providers.docker.network=traefik-public
+      # Fájl provider (TLS konfig)
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      # Entrypoints
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      # Logolás
+      - --log.level=WARN
+      - --accesslog=false
+    ports:
+      - "80:80"
+      - "443:443"
+      - "{{ traefik_dashboard_port }}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./certs:/etc/traefik/certs:ro
+      - ./dynamic:/etc/traefik/dynamic:ro
+    networks:
+      - traefik-public
+
+networks:
+  traefik-public:
+    external: true

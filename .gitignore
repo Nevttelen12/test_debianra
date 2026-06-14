@@ -1,0 +1,16 @@
+# Ansible generált fájlok
+*.retry
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+*.swp
+*.swo
+*~
+
+# Secrets — soha ne commitolj jelszavakat!
+# Ha a group_vars/all.yml-ben érzékeny adat van,
+# használj ansible-vault-ot a titkosításhoz.

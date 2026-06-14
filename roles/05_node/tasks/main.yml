@@ -1,0 +1,79 @@
+---
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  Role 05: Node.js — NVM, Több verzió, pnpm, Vue ecosystem      ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
+# ─────────────────────────────────────────────────
+# NVM telepítés
+# ─────────────────────────────────────────────────
+- name: "NVM v{{ nvm_version }} telepítése"
+  become: false
+  ansible.builtin.shell: >
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v{{ nvm_version }}/install.sh | bash
+  args:
+    creates: "/home/{{ dev_user }}/.nvm/nvm.sh"
+    executable: /bin/bash
+  tags: [node, nvm]
+
+# ─────────────────────────────────────────────────
+# Node.js verziók telepítése
+# ─────────────────────────────────────────────────
+- name: "Node.js {{ item }} telepítése NVM-mel"
+  become: false
+  ansible.builtin.shell: |
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    nvm install {{ item }}
+  args:
+    executable: /bin/bash
+  register: node_install
+  changed_when: "'is already installed' not in node_install.stderr"
+  loop: "{{ node_versions }}"
+  tags: [node, install]
+
+# ─────────────────────────────────────────────────
+# Alapértelmezett Node verzió
+# ─────────────────────────────────────────────────
+- name: "Node.js {{ node_default_version }} beállítása alapértelmezettnek"
+  become: false
+  ansible.builtin.shell: |
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    nvm alias default {{ node_default_version }}
+  args:
+    executable: /bin/bash
+  changed_when: false
+  tags: [node, default]
+
+# ─────────────────────────────────────────────────
+# Corepack (pnpm, yarn natív kezelő)
+# ─────────────────────────────────────────────────
+- name: Corepack engedélyezése (pnpm, yarn)
+  become: false
+  ansible.builtin.shell: |
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    corepack enable
+  args:
+    executable: /bin/bash
+  changed_when: false
+  tags: [node, corepack]
+
+# ─────────────────────────────────────────────────
+# Vue.js ecosystem + globális eszközök
+# ─────────────────────────────────────────────────
+- name: Globális NPM csomagok telepítése (Vue ecosystem)
+  become: false
+  ansible.builtin.shell: |
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    npm install -g \
+      @vue/cli \
+      create-vite \
+      typescript \
+      serve
+  args:
+    executable: /bin/bash
+  register: npm_global
+  changed_when: "'added' in npm_global.stdout or 'updated' in npm_global.stdout"
+  tags: [node, vue, global]

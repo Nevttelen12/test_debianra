@@ -1,0 +1,40 @@
+---
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  Role 08: Kódminőségi Eszközök — PHP + JS linting              ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
+# ─────────────────────────────────────────────────
+# PHP kódminőség (Composer global)
+# ─────────────────────────────────────────────────
+- name: Globális PHP kódminőségi eszközök telepítése
+  become: false
+  ansible.builtin.shell: |
+    composer global require --no-interaction \
+      laravel/pint \
+      phpstan/phpstan \
+      squizlabs/php_codesniffer
+  args:
+    executable: /bin/bash
+  environment:
+    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+  register: php_quality
+  changed_when: "'Nothing to install' not in php_quality.stdout"
+  tags: [quality, php]
+
+# ─────────────────────────────────────────────────
+# JavaScript / Vue.js kódminőség (NPM global)
+# ─────────────────────────────────────────────────
+- name: Globális JS kódminőségi eszközök telepítése
+  become: false
+  ansible.builtin.shell: |
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    npm install -g \
+      eslint \
+      prettier \
+      @biomejs/biome
+  args:
+    executable: /bin/bash
+  register: js_quality
+  changed_when: "'added' in js_quality.stdout or 'updated' in js_quality.stdout"
+  tags: [quality, js]

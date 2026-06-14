@@ -1,0 +1,190 @@
+---
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  Role 07: Lokális Infrastruktúra                                ║
+# ║  mkcert, dnsmasq, Traefik, MySQL, Redis, Mailpit               ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
+# ─────────────────────────────────────────────────
+# mkcert — lokális HTTPS tanúsítványok
+# ─────────────────────────────────────────────────
+- name: mkcert függőségek (libnss3-tools)
+  ansible.builtin.apt:
+    name: libnss3-tools
+    state: present
+  tags: [infra, mkcert]
+
+- name: mkcert telepítése
+  ansible.builtin.shell: |
+    MKCERT_VERSION=$(curl -s "https://api.github.com/repos/FiloSottile/mkcert/releases/latest" | jq -r .tag_name)
+    curl -Lo /usr/local/bin/mkcert "https://github.com/FiloSottile/mkcert/releases/download/${MKCERT_VERSION}/mkcert-${MKCERT_VERSION}-linux-amd64"
+    chmod +x /usr/local/bin/mkcert
+  args:
+    creates: /usr/local/bin/mkcert
+  tags: [infra, mkcert]
+
+- name: mkcert — lokális CA telepítése
+  become: false
+  ansible.builtin.command: mkcert -install
+  changed_when: false
+  tags: [infra, mkcert]
+
+# ─────────────────────────────────────────────────
+# Traefik könyvtárak és tanúsítványok
+# ─────────────────────────────────────────────────
+- name: Traefik könyvtárak létrehozása
+  become: false
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ traefik_base_dir }}"
+    - "{{ traefik_base_dir }}/certs"
+    - "{{ traefik_base_dir }}/dynamic"
+  tags: [infra, traefik]
+
+- name: "Wildcard tanúsítvány generálása (*.{{ local_domain_tld }})"
+  become: false
+  ansible.builtin.shell: |
+    cd {{ traefik_base_dir }}/certs
+    mkcert -cert-file local-cert.pem -key-file local-key.pem \
+      "*.{{ local_domain_tld }}" "{{ local_domain_tld }}" localhost 127.0.0.1 ::1
+  args:
+    creates: "{{ traefik_base_dir }}/certs/local-cert.pem"
+  tags: [infra, traefik, mkcert]
+
+# ─────────────────────────────────────────────────
+# Traefik konfigurációk (template-ek)
+# ─────────────────────────────────────────────────
+- name: Traefik docker-compose.yml generálása
+  become: false
+  ansible.builtin.template:
+    src: traefik-compose.yml.j2
+    dest: "{{ traefik_base_dir }}/docker-compose.yml"
+    mode: "0644"
+  tags: [infra, traefik]
+
+- name: Traefik dinamikus TLS konfiguráció
+  become: false
+  ansible.builtin.template:
+    src: traefik-dynamic.yml.j2
+    dest: "{{ traefik_base_dir }}/dynamic/tls.yml"
+    mode: "0644"
+  tags: [infra, traefik]
+
+# ─────────────────────────────────────────────────
+# dnsmasq — *.test → 127.0.0.1
+# ─────────────────────────────────────────────────
+- name: dnsmasq telepítése
+  ansible.builtin.apt:
+    name: dnsmasq
+    state: present
+  tags: [infra, dns]
+
+- name: "dnsmasq: *.{{ local_domain_tld }} → 127.0.0.1"
+  ansible.builtin.copy:
+    content: |
+      # Ansible managed — minden .{{ local_domain_tld }} domain → localhost
+      address=/.{{ local_domain_tld }}/127.0.0.1
+    dest: "/etc/dnsmasq.d/dev-{{ local_domain_tld }}.conf"
+    mode: "0644"
+  notify: restart dnsmasq
+  tags: [infra, dns]
+
+- name: dnsmasq beállítása a systemd-resolved mellett
+  ansible.builtin.lineinfile:
+    path: /etc/resolv.conf
+    line: "nameserver 127.0.0.1"
+    insertbefore: BOF
+  tags: [infra, dns]
+
+# ─────────────────────────────────────────────────
+# Globális konténerek indítása (Docker Compose)
+# ─────────────────────────────────────────────────
+
+# Traefik (reverse proxy)
+- name: "🔀 Traefik reverse proxy indítása"
+  become: false
+  ansible.builtin.shell: docker compose up -d
+  args:
+    chdir: "{{ traefik_base_dir }}"
+    executable: /bin/bash
+  changed_when: false
+  tags: [infra, traefik]
+
+# MySQL
+- name: "🗄️ Globális MySQL konténer indítása"
+  become: false
+  community.docker.docker_container:
+    name: global-mysql
+    image: mysql:8.0
+    state: started
+    restart_policy: always
+    ports:
+      - "{{ mysql_port }}:3306"
+    env:
+      MYSQL_ROOT_PASSWORD: "{{ mysql_root_password }}"
+    volumes:
+      - "global-mysql-data:/var/lib/mysql"
+    networks:
+      - name: traefik-public
+  tags: [infra, mysql]
+
+# Redis
+- name: "⚡ Globális Redis konténer indítása"
+  become: false
+  community.docker.docker_container:
+    name: global-redis
+    image: redis:7-alpine
+    state: started
+    restart_policy: always
+    ports:
+      - "{{ redis_port }}:6379"
+    volumes:
+      - "global-redis-data:/data"
+    networks:
+      - name: traefik-public
+  tags: [infra, redis]
+
+# Mailpit
+- name: "📧 Globális Mailpit konténer indítása"
+  become: false
+  community.docker.docker_container:
+    name: global-mailpit
+    image: axllent/mailpit:latest
+    state: started
+    restart_policy: always
+    ports:
+      - "{{ mailpit_smtp_port }}:1025"
+      - "{{ mailpit_web_port }}:8025"
+    networks:
+      - name: traefik-public
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.mailpit.rule: "Host(`mail.{{ local_domain_tld }}`)"
+      traefik.http.routers.mailpit.tls: "true"
+      traefik.http.services.mailpit.loadbalancer.server.port: "8025"
+  tags: [infra, mailpit]
+
+# ─────────────────────────────────────────────────
+# Docker volume-ok létrehozása
+# ─────────────────────────────────────────────────
+- name: Docker volume-ok létrehozása
+  become: false
+  community.docker.docker_volume:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - global-mysql-data
+    - global-redis-data
+  tags: [infra, volumes]
+
+# ─────────────────────────────────────────────────
+# Adatbázis kliensek
+# ─────────────────────────────────────────────────
+- name: MySQL kliens telepítése
+  ansible.builtin.apt:
+    name:
+      - default-mysql-client
+    state: present
+  tags: [infra, mysql, client]

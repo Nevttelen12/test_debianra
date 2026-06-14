@@ -1,0 +1,92 @@
+---
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  Role 04: PHP — Multi-verzió (Sury), Composer, Laravel tools    ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
+# ─────────────────────────────────────────────────
+# Sury PHP repó (modern GPG)
+# ─────────────────────────────────────────────────
+- name: Ondřej Surý PHP GPG kulcs letöltése és konvertálása
+  ansible.builtin.shell: |
+    curl -fsSL https://packages.sury.org/php/apt.gpg | gpg --dearmor -o /etc/apt/keyrings/sury-php.gpg
+    chmod a+r /etc/apt/keyrings/sury-php.gpg
+  args:
+    creates: /etc/apt/keyrings/sury-php.gpg
+  tags: [php, repo]
+
+- name: Sury PHP APT repó hozzáadása
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/etc/apt/keyrings/sury-php.gpg]
+      https://packages.sury.org/php/
+      {{ ansible_distribution_release }} main
+    filename: sury-php
+    state: present
+  tags: [php, repo]
+
+# ─────────────────────────────────────────────────
+# PHP verziók + kiterjesztések telepítése
+# ─────────────────────────────────────────────────
+- name: "PHP {{ item.0 }} + {{ item.1 }} kiterjesztés telepítése"
+  ansible.builtin.apt:
+    name: "php{{ item.0 }}-{{ item.1 }}"
+    state: present
+    update_cache: true
+  loop: "{{ php_versions | product(php_extensions) | list }}"
+  tags: [php, extensions]
+
+# ─────────────────────────────────────────────────
+# update-alternatives — alapértelmezett PHP beállítás
+# ─────────────────────────────────────────────────
+- name: "update-alternatives: PHP → {{ php_default_version }}"
+  ansible.builtin.alternatives:
+    name: php
+    path: "/usr/bin/php{{ php_default_version }}"
+  tags: [php, default]
+
+- name: "update-alternatives: phar → {{ php_default_version }}"
+  ansible.builtin.alternatives:
+    name: phar
+    path: "/usr/bin/phar{{ php_default_version }}"
+  tags: [php, default]
+
+- name: "update-alternatives: phar.phar → {{ php_default_version }}"
+  ansible.builtin.alternatives:
+    name: phar.phar
+    path: "/usr/bin/phar.phar{{ php_default_version }}"
+  tags: [php, default]
+
+# ─────────────────────────────────────────────────
+# Composer
+# ─────────────────────────────────────────────────
+- name: Composer telepítése (hivatalos installer + hash ellenőrzéssel)
+  ansible.builtin.shell: |
+    EXPECTED_CHECKSUM="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
+    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+    ACTUAL_CHECKSUM="$(php -r "echo hash_file('sha384', 'composer-setup.php');")"
+
+    if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
+        echo 'ERROR: Composer installer hash mismatch!'
+        rm composer-setup.php
+        exit 1
+    fi
+
+    php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+    rm composer-setup.php
+  args:
+    creates: /usr/local/bin/composer
+  tags: [php, composer]
+
+# ─────────────────────────────────────────────────
+# Laravel Installer
+# ─────────────────────────────────────────────────
+- name: Laravel Installer telepítése Composer-rel
+  become: false
+  ansible.builtin.shell: composer global require laravel/installer --no-interaction
+  args:
+    executable: /bin/bash
+  environment:
+    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+  register: laravel_installer
+  changed_when: "'Nothing to install' not in laravel_installer.stdout"
+  tags: [php, laravel]

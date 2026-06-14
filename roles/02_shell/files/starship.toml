@@ -1,0 +1,73 @@
+# ═══════════════════════════════════════════════
+#  Starship Prompt — Fejlesztői konfiguráció
+#  https://starship.rs/config/
+# ═══════════════════════════════════════════════
+
+# Prompt formátum — minimalista de informatív
+format = """
+$directory\
+$git_branch\
+$git_status\
+$php\
+$nodejs\
+$docker_context\
+$cmd_duration\
+$line_break\
+$character"""
+
+# Ne legyen üres sor a prompt előtt
+add_newline = true
+
+# ─── Könyvtár ───
+[directory]
+truncation_length = 3
+truncation_symbol = "…/"
+style = "bold cyan"
+
+# ─── Git branch ───
+[git_branch]
+format = " [$symbol$branch]($style) "
+symbol = " "
+style = "bold purple"
+
+# ─── Git status ───
+[git_status]
+format = '([$all_status$ahead_behind]($style) )'
+style = "bold red"
+conflicted = "⚡"
+ahead = "⬆${count}"
+behind = "⬇${count}"
+diverged = "⬆${ahead_count}⬇${behind_count}"
+modified = "!${count}"
+staged = "+${count}"
+untracked = "?${count}"
+
+# ─── PHP verzió ───
+[php]
+format = "[$symbol$version]($style) "
+symbol = "🐘 "
+style = "bold 147"
+
+# ─── Node.js verzió ───
+[nodejs]
+format = "[$symbol$version]($style) "
+symbol = " "
+style = "bold green"
+
+# ─── Docker kontextus ───
+[docker_context]
+format = "[$symbol$context]($style) "
+symbol = "🐳 "
+style = "bold blue"
+only_with_files = true
+
+# ─── Parancs futási idő ───
+[cmd_duration]
+format = "[$duration]($style) "
+style = "bold yellow"
+min_time = 2_000                       # Csak 2 sec felett jelenjen meg
+
+# ─── Prompt karakter ───
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
