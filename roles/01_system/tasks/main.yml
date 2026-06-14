@@ -25,37 +25,13 @@
       - tmux
       - make
       - direnv
+      - glab
     state: present
     update_cache: true
     cache_valid_time: 3600
   tags: [system, packages]
 
-# ─────────────────────────────────────────────────
-# GitLab CLI (glab)
-# ─────────────────────────────────────────────────
-- name: GitLab CLI (glab) — GPG kulcs letöltése
-  ansible.builtin.get_url:
-    url: https://gitlab.com/gitlab-org/cli/-/raw/main/scripts/gpg_key.pub
-    dest: /usr/share/keyrings/gitlab-cli-archive-keyring.gpg.asc
-    mode: "0644"
-  tags: [system, gitlab]
 
-- name: GitLab CLI (glab) — APT repó hozzáadása
-  ansible.builtin.apt_repository:
-    repo: >-
-      deb [signed-by=/usr/share/keyrings/gitlab-cli-archive-keyring.gpg.asc]
-      https://gitlab.com/gitlab-org/cli/-/packages/deb
-      stable main
-    filename: gitlab-cli
-    state: present
-  tags: [system, gitlab]
-
-- name: GitLab CLI (glab) — telepítés
-  ansible.builtin.apt:
-    name: glab
-    state: present
-    update_cache: true
-  tags: [system, gitlab]
 
 # ─────────────────────────────────────────────────
 # Git konfiguráció
