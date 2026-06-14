@@ -45,14 +45,14 @@ check_system() {
     if [ ! -f /etc/os-release ]; then
         error "Nem található /etc/os-release — ez Debian rendszer?"
     fi
-    source /etc/os-release
+    . /etc/os-release
 
     if [ "$ID" != "debian" ]; then
         error "Ez a script Debian rendszerre készült. Jelenlegi: $ID $VERSION_ID"
     fi
 
-    if [ "$VERSION_ID" != "12" ]; then
-        warn "Debian $VERSION_ID detektálva — a script Debian 12-re van optimalizálva"
+    if [ "$VERSION_ID" != "12" ] && [ "$VERSION_ID" != "13" ]; then
+        warn "Debian $VERSION_ID detektálva — a script Debian 12/13-ra van optimalizálva"
         read -rp "  Folytatod mégis? (i/n): " choice
         [[ "$choice" =~ ^[iIyY]$ ]] || exit 0
     fi
