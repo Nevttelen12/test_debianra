@@ -15,7 +15,6 @@
       - build-essential
       - unzip
       - zip
-      - software-properties-common
       - apt-transport-https
       - ca-certificates
       - gnupg
