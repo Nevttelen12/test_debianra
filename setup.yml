@@ -19,13 +19,13 @@
     - group_vars/all.yml
 
   pre_tasks:
-    - name: Debian Bookworm ellenőrzése
+    - name: Debian verzió ellenőrzése
       ansible.builtin.assert:
         that:
           - ansible_distribution == "Debian"
-          - ansible_distribution_major_version == "12"
+          - ansible_distribution_major_version in ["12", "13"]
         fail_msg: >
-          Ez a playbook Debian 12 (Bookworm) rendszerre készült.
+          Ez a playbook Debian 12/13 rendszerre készült.
           Jelenlegi rendszer: {{ ansible_distribution }} {{ ansible_distribution_version }}
       tags: always
 
